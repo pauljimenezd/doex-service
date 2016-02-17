@@ -1,0 +1,4 @@
+cron:
+#- description: auto update rates
+#  url: /tasks/update-rates
+#  schedule: every 2 hours

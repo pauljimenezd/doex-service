@@ -17,9 +17,15 @@
 #
 import webapp2
 import handlers
+import tasks
 
 app = webapp2.WSGIApplication([
     webapp2.Route(r'/currencies', handler=handlers.Currencies, name='currency'),
     webapp2.Route(r'/currencies/<code:[a-z]{3}>', handler=handlers.Currencies, name='currencies-list'),
-    webapp2.Route(r'/currencies/<currency:[a-z]{3}>/rates/today', handler=handlers.Rates, name='currency-rates-list'),
-], debug=True)
+    webapp2.Route(r'/currencies/<currency:[a-z]{3}>/rates', handler=handlers.Rates, name='currency-rates-list'),
+    # Rates route
+    webapp2.Route(r'/rates/today', handler=handlers.TodayRates, name='rates-today'),
+    webapp2.Route(r'/rates/today/<currency:[a-z]{3}>', handler=handlers.TodayRates, name='rates-today-currency'),
+    # Tasks route
+    webapp2.Route(r'/tasks/update-rates', handler=tasks.RatesUpdateTask, name='rates-update')
+], debug=False)

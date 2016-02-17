@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import webapp2
 import json
-from models import Currency
+from models import Currency, Rate
 from google.appengine.api import memcache
 
 
@@ -33,7 +33,7 @@ class Currencies(webapp2.RequestHandler):
         cache_key = 'currency-' + code
         currency = memcache.get(key=cache_key)
         if not currency:
-            currency = Currency.get_by_key_name(key_names=code)
+            currency = Currency.get_by_id(id=code)
             memcache.add(key=cache_key, value=json.dumps(currency, cls=Currency.JSONEncoder), time=3600)
         else:
             obj = json.loads(currency)
@@ -49,7 +49,7 @@ class Currencies(webapp2.RequestHandler):
 
         if not currency_list:
             # Retrieving list from the datastore due to not found on cache
-            currency_list = Currency.all()
+            currency_list = Currency.query().fetch()
             # Saving the result to the cache for 1hr
             memcache.add(key=key, value=json.dumps(currency_list, cls=Currency.JSONEncoder), time=3600)
         else:
@@ -62,9 +62,37 @@ class Currencies(webapp2.RequestHandler):
 class Rates(webapp2.RequestHandler):
     def get(self, currency):
         from datetime import date
-        key = unicode(currency) + date.today().strftime('%Y%m%d')
-        rate = memcache.get(key)
+        # key = unicode(currency) + date.today().strftime('%Y%m%d')
+        # rate = memcache.get(key)
+        cur = Currency.get_by_id(currency.lower())
+        if not cur:
+            webapp2.abort(404)
+
+        rates = Rate.query(ancestor=cur.key).order(Rate.date).fetch()
 
         self.response.content_type = 'application/json; charset=utf-8'
-        return self.response.out.write(rate)
+        return self.response.out.write(json.dumps(rates, cls=Rate.JSONEncoder))
 
+
+class TodayRates(webapp2.RequestHandler):
+    def get(self, currency=None):
+        from datetime import date, timedelta
+        cur = None
+        if currency:
+            cur = Currency.get_by_id(currency.lower())
+            if not cur:
+                webapp2.abort(404)
+
+        date_param = date.today() - timedelta(days=1)
+
+        if cur:
+            result = Rate.query(Rate.currency == cur.key, Rate.date == date_param).get()
+        else:
+            result = Rate.query(Rate.date == date_param).fetch()
+
+        if not result:
+            webapp2.abort(404)
+
+        self.response.content_type = 'application/json; charset=utf-8'
+        resp = json.dumps(result, cls=Rate.FullJSONEncoder)
+        return self.response.out.write(resp)
