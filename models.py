@@ -40,16 +40,6 @@ class Currency(ndb.Model):
 
 
 class Rate(ndb.Model):
-    # class JSONEncoder(JSONEncoder):
-    #     def default(self, o):
-    #         if isinstance(o, Rate):
-    #             return {u'id': o.key.id(), u'date': o.date.isoformat(), u'value': o.value, u'currency': o.currency.id(), u'created': o.created.isoformat()}
-    #
-    #         if isinstance(o, ndb.Query):
-    #             return [self.default(cur) for cur in o]
-    #
-    #         return super(Rate.JSONEncoder, self).default(o)
-
     class JSONEncoder(BaseJSONEncoder):
         def process_encode(self, o):
             if isinstance(o, Rate):
@@ -77,4 +67,4 @@ class Config(ndb.Model):
 
         return key_value
 
-    value = ndb.StringProperty(required=True, indexed=False)
+    value = ndb.StringProperty(required=True)

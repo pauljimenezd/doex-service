@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-import webapp2
 import json
-from models import Currency, Rate
+
+from google.appengine.ext import ndb
+import webapp2
 from google.appengine.api import memcache
+
+from models import Currency, Rate
 
 
 class Currencies(webapp2.RequestHandler):
@@ -20,6 +23,7 @@ class Currencies(webapp2.RequestHandler):
             webapp2.abort(404)
 
         # Setting response header
+        self.response.headers['Access-Control-Allow-Origin'] = '*'
         self.response.content_type = 'application/json; charset=utf-8'
         return self.response.out.write(json.dumps(result, cls=Currency.JSONEncoder))
 
@@ -61,38 +65,39 @@ class Currencies(webapp2.RequestHandler):
 
 class Rates(webapp2.RequestHandler):
     def get(self, currency):
-        from datetime import date
         # key = unicode(currency) + date.today().strftime('%Y%m%d')
         # rate = memcache.get(key)
-        cur = Currency.get_by_id(currency.lower())
-        if not cur:
-            webapp2.abort(404)
+        # cur = Currency.get_by_id(currency.lower())
+        # if not cur:
+        #     webapp2.abort(404)
 
-        rates = Rate.query(ancestor=cur.key).order(Rate.date).fetch()
+        rates = Rate.query(Rate.currency == ndb.Key('Currency', currency.lower())).order(-Rate.date).fetch(60)
 
+        self.response.headers['Access-Control-Allow-Origin'] = '*'
         self.response.content_type = 'application/json; charset=utf-8'
         return self.response.out.write(json.dumps(rates, cls=Rate.JSONEncoder))
 
-
-class TodayRates(webapp2.RequestHandler):
-    def get(self, currency=None):
+    def today(self, currency=None):
         from datetime import date, timedelta
-        cur = None
-        if currency:
-            cur = Currency.get_by_id(currency.lower())
-            if not cur:
-                webapp2.abort(404)
+        # cur = None
+        # if currency:
+        #     cur = Currency.get_by_id(currency.lower())
+        #     if not cur:
+        #         webapp2.abort(404)
 
         date_param = date.today() - timedelta(days=1)
 
-        if cur:
-            result = Rate.query(Rate.currency == cur.key, Rate.date == date_param).get()
+        if currency:
+            result = Rate.query(Rate.currency == ndb.Key('Currency', currency.lower()), Rate.date == date_param).get()
+            if not result:
+                webapp2.abort(404)
         else:
             result = Rate.query(Rate.date == date_param).fetch()
 
         if not result:
             webapp2.abort(404)
 
+        self.response.headers['Access-Control-Allow-Origin'] = '*'
         self.response.content_type = 'application/json; charset=utf-8'
         resp = json.dumps(result, cls=Rate.FullJSONEncoder)
         return self.response.out.write(resp)
