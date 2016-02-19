@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from google.appengine.ext import ndb
 from json import JSONEncoder
+from utils import AtlanticTimezone
 
 __author__ = 'pejimenezd'
+astzone = AtlanticTimezone()
 
 
 class BaseJSONEncoder(JSONEncoder):
@@ -49,7 +51,8 @@ class Rate(ndb.Model):
     class FullJSONEncoder(BaseJSONEncoder):
         def process_encode(self, o):
             if isinstance(o, Rate):
-                return {u'date': o.date.isoformat(), u'currency': o.currency.id(), u'value': o.value, u'created': o.created.isoformat()}
+                return {u'date': o.date.isoformat(), u'currency': o.currency.id(), u'value': o.value,
+                        u'created': o.created.isoformat()}
             return super(BaseJSONEncoder, self).process_encode(o)
 
     currency = ndb.KeyProperty(kind=Currency)
@@ -62,8 +65,8 @@ class Config(ndb.Model):
     @property
     def name(self):
         key_value = None
-        if self.key().has_id_or_name():
-            key_value = self.key().name()
+        if self.key.id():
+            key_value = self.key.id()
 
         return key_value
 

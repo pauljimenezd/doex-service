@@ -14,4 +14,9 @@ indexes:
   properties:
   - name: currency
   - name: date
+
+- kind: Rate
+  properties:
+  - name: currency
+  - name: date
     direction: desc

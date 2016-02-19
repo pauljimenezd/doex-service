@@ -10,6 +10,10 @@ from models import Currency, Rate
 
 class Currencies(webapp2.RequestHandler):
     def get(self, code=None):
+        # Setting response header
+        self.response.headers['Access-Control-Allow-Origin'] = '*'
+        self.response.content_type = 'application/json; charset=utf-8'
+
         # Verification for retrieve only one record or list
         if code is not None:
             # Retrieving single record
@@ -22,9 +26,6 @@ class Currencies(webapp2.RequestHandler):
             # Return a 404 if no record was found
             webapp2.abort(404)
 
-        # Setting response header
-        self.response.headers['Access-Control-Allow-Origin'] = '*'
-        self.response.content_type = 'application/json; charset=utf-8'
         return self.response.out.write(json.dumps(result, cls=Currency.JSONEncoder))
 
     def post(self):
@@ -65,39 +66,86 @@ class Currencies(webapp2.RequestHandler):
 
 class Rates(webapp2.RequestHandler):
     def get(self, currency):
-        # key = unicode(currency) + date.today().strftime('%Y%m%d')
-        # rate = memcache.get(key)
-        # cur = Currency.get_by_id(currency.lower())
-        # if not cur:
-        #     webapp2.abort(404)
+        # Setting response header
+        self.response.headers['Access-Control-Allow-Origin'] = '*'
+        self.response.content_type = 'application/json; charset=utf-8'
 
         rates = Rate.query(Rate.currency == ndb.Key('Currency', currency.lower())).order(-Rate.date).fetch(60)
 
-        self.response.headers['Access-Control-Allow-Origin'] = '*'
-        self.response.content_type = 'application/json; charset=utf-8'
         return self.response.out.write(json.dumps(rates, cls=Rate.JSONEncoder))
 
     def today(self, currency=None):
-        from datetime import date, timedelta
-        # cur = None
-        # if currency:
-        #     cur = Currency.get_by_id(currency.lower())
-        #     if not cur:
-        #         webapp2.abort(404)
+        from utils import AtlanticTimezone
+        from datetime import datetime, timedelta
+        # Setting response header
+        self.response.headers['Access-Control-Allow-Origin'] = '*'
+        self.response.content_type = 'application/json; charset=utf-8'
 
-        date_param = date.today() - timedelta(days=1)
+        date_param = datetime.now(AtlanticTimezone()).date() - timedelta(days=1)
 
         if currency:
             result = Rate.query(Rate.currency == ndb.Key('Currency', currency.lower()), Rate.date == date_param).get()
             if not result:
-                webapp2.abort(404)
+                webapp2.abort(404, '')
         else:
             result = Rate.query(Rate.date == date_param).fetch()
 
-        if not result:
-            webapp2.abort(404)
+            if not result:
+                webapp2.abort(404, '')
 
+        resp = json.dumps(result, cls=Rate.FullJSONEncoder)
+        return self.response.out.write(resp)
+
+    def now(self, currency=None):
+        from utils import AtlanticTimezone
+        from datetime import datetime, timedelta
+        # Setting response header
         self.response.headers['Access-Control-Allow-Origin'] = '*'
         self.response.content_type = 'application/json; charset=utf-8'
+
+        now_date = datetime.now(AtlanticTimezone()).date()
+        today_date = now_date - timedelta(days=1)
+
+        if currency:
+            query = Rate.query(Rate.currency == ndb.Key('Currency', currency.lower()), ndb.OR(Rate.date == now_date, Rate.date == today_date))
+            result = query.filter(Rate.date == now_date)
+            if not result.count():
+                result = query.filter(Rate.date == today_date)
+
+            if not result.count():
+                webapp2.abort(404, '')
+
+            result = result.get()
+        else:
+            query = Rate.query(ndb.OR(Rate.date == now_date, Rate.date == today_date))
+            result = query.filter(Rate.date == now_date)
+            if not result.count():
+                result = query.filter(Rate.date == today_date)
+
+            if not result.count():
+                webapp2.abort(404, '')
+
         resp = json.dumps(result, cls=Rate.FullJSONEncoder)
+        return self.response.out.write(resp)
+
+    def this_month(self, currency=None):
+        from utils import AtlanticTimezone as AstZone
+        from datetime import datetime, timedelta
+
+        # Setting response header
+        self.response.headers['Access-Control-Allow-Origin'] = '*'
+        self.response.content_type = 'application/json; charset=utf-8'
+
+        _date = datetime.now(AstZone()).date()
+        _date = _date.replace(day=1)
+
+        if currency:
+            results = Rate.query(Rate.currency == ndb.Key('Currency', currency), Rate.date >= _date)
+        else:
+            results = Rate.query(Rate.date >= _date)
+
+        if not results.count():
+            webapp2.abort(404)
+
+        resp = json.dumps(results, cls=Rate.FullJSONEncoder)
         return self.response.out.write(resp)

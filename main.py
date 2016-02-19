@@ -19,6 +19,22 @@ import webapp2
 import handlers
 import tasks
 
+
+def handle_404(request, response, exception):
+    # logging.exception(exception)
+    # response.write('Oops! I could swear this page was here!')
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.content_type = 'application/json; charset=utf-8'
+    response.set_status(404)
+
+
+def handle_500(request, response, exception):
+    # response.write('A server error occurred!')
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.content_type = 'application/json; charset=utf-8'
+    response.set_status(webapp2.exc.HTTPServerError)
+
+
 app = webapp2.WSGIApplication([
     webapp2.Route(r'/currencies', handler=handlers.Currencies, name='currency'),
     webapp2.Route(r'/currencies/<code:[a-z]{3}>', handler=handlers.Currencies, name='currencies-list'),
@@ -26,8 +42,15 @@ app = webapp2.WSGIApplication([
     # Rates route
     webapp2.Route(r'/rates', handler=handlers.Rates, handler_method='today', name='rates-today'),
     webapp2.Route(r'/rates/today', handler=handlers.Rates, handler_method='today', name='rates-today'),
-     webapp2.Route(r'/rates/<currency:[a-z]{3}>', handler=handlers.Rates, handler_method='today', name='rates-today-currency'),
+    webapp2.Route(r'/rates/now', handler=handlers.Rates, handler_method='now', name='rates-now'),
+    webapp2.Route(r'/rates/this-month', handler=handlers.Rates, handler_method='this_month', name='rates-this-mont'),
+    webapp2.Route(r'/rates/<currency:[a-z]{3}>', handler=handlers.Rates, handler_method='today', name='rates-today-currency'),
     webapp2.Route(r'/rates/<currency:[a-z]{3}>/today', handler=handlers.Rates, handler_method='today', name='rates-today-currency'),
+    webapp2.Route(r'/rates/<currency:[a-z]{3}>/now', handler=handlers.Rates, handler_method='now', name='rates-now'),
+    webapp2.Route(r'/rates/<currency:[a-z]{3}>/this-month', handler=handlers.Rates, handler_method='this_month', name='rates-this-mont'),
     # Tasks route
     webapp2.Route(r'/tasks/rates/update', handler=tasks.RatesUpdateTasks, handler_method='update', name='rates-update')
 ], debug=False)
+
+app.error_handlers[404] = handle_404
+app.error_handlers[500] = handle_500
