@@ -1,4 +1,8 @@
 cron:
-- description: auto update rates
+- description: Auto update rates
   url: /tasks/rates/update
-  schedule: every monday,tuesday,wednesday,thursday,friday 21:40
+  schedule: every monday,tuesday,wednesday,thursday,friday 22:00
+
+- description: Auto synchronization rates data
+  url: /tasks/rates/syncronize
+  schedule: every 2 hours
