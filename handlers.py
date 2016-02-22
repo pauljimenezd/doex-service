@@ -82,6 +82,8 @@ class Rates(webapp2.RequestHandler):
         self.response.content_type = 'application/json; charset=utf-8'
 
         date_param = datetime.now(AtlanticTimezone()).date() - timedelta(days=1)
+        if date_param.weekday() in (5, 6):
+            date_param = date_param - timedelta(days=date_param.weekday() - 4)
 
         if currency:
             result = Rate.query(Rate.currency == ndb.Key('Currency', currency.lower()), Rate.date == date_param).get()
