@@ -49,7 +49,8 @@ app = webapp2.WSGIApplication([
     webapp2.Route(r'/rates/<currency:[a-z]{3}>/now', handler=handlers.Rates, handler_method='now', name='rates-now'),
     webapp2.Route(r'/rates/<currency:[a-z]{3}>/this-month', handler=handlers.Rates, handler_method='this_month', name='rates-this-mont'),
     # Tasks route
-    webapp2.Route(r'/tasks/rates/update', handler=tasks.RatesUpdateTasks, handler_method='update', name='rates-update')
+    webapp2.Route(r'/tasks/rates/update', handler=tasks.RatesUpdateTasks, handler_method='update', name='rates-update'),
+    webapp2.Route(r'/tasks/rates/sync', handler=tasks.RatesUpdateTasks, handler_method='synchronize', name='rates-sync')
 ], debug=False)
 
 app.error_handlers[404] = handle_404
