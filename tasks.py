@@ -2,13 +2,12 @@
 import json
 from urllib2 import urlopen
 from datetime import date
-from google.appengine.ext import ndb
 
-from google.appengine.runtime.apiproxy_errors import OverQuotaError
+from google.appengine.ext import ndb
 import webapp2
 import xlrd
 
-from models import Config, Rate, Currency
+from models import Config, Rate
 
 MONTHS = {'ene': 1, 'feb': 2, 'mar': 3, 'abr': 4, 'may': 5, 'jun': 6, 'jul': 7, 'ago': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dic': 12}
 
@@ -90,6 +89,7 @@ class RatesUpdateTasks(webapp2.RequestHandler):
                 last_processed = initial_row
 
                 if initial_row < total_records:
+                    existing_rates = Rate.query().fetch()
                     rate_list = []
                     for rowIndex in range(initial_row, total_records):
                         processed = False
@@ -108,7 +108,8 @@ class RatesUpdateTasks(webapp2.RequestHandler):
 
                                 if col_value is not '':
                                     # Verify if already exists a rate in the db
-                                    if not Rate.query(Rate.currency == ndb.Key('Currency', currency), Rate.date == rate_date).count():
+                                    found_rows = [r for r in existing_rates if r.currency.id() == currency and r.date == rate_date]
+                                    if not len(found_rows):
                                         rate_list.append(Rate(currency=ndb.Key('Currency', currency), date=rate_date, value=col_value))
                                         processed = True
 
