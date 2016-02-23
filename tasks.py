@@ -41,7 +41,10 @@ class RatesUpdateTasks(webapp2.RequestHandler):
                         month = int(MONTHS.get((sheet.cell_value(rowx=rowIndex, colx=1) or '').lower(), None))
                         day = int(sheet.cell_value(rowx=rowIndex, colx=2))
 
-                        rate_date = date(year, month, day) if year and month and day else None
+                        try:
+                            rate_date = date(year, month, day) if year and month and day else None
+                        except ValueError:
+                            continue
 
                         if rate_date:
                             for currency, colIndex in columns.items():
@@ -94,7 +97,10 @@ class RatesUpdateTasks(webapp2.RequestHandler):
                         month = int(MONTHS.get((sheet.cell_value(rowx=rowIndex, colx=1) or '').lower(), None))
                         day = int(sheet.cell_value(rowx=rowIndex, colx=2))
 
-                        rate_date = date(year, month, day) if year and month and day else None
+                        try:
+                            rate_date = date(year, month, day) if year and month and day else None
+                        except ValueError:
+                            continue
 
                         if rate_date:
                             for currency, colIndex in columns.items():
