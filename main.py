@@ -22,17 +22,15 @@ import tasks
 
 def handle_404(request, response, exception):
     # logging.exception(exception)
-    # response.write('Oops! I could swear this page was here!')
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.content_type = 'application/json; charset=utf-8'
     response.set_status(404)
 
 
 def handle_500(request, response, exception):
-    # response.write('A server error occurred!')
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.content_type = 'application/json; charset=utf-8'
-    response.set_status(webapp2.exc.HTTPServerError)
+    response.set_status(500)
 
 
 app = webapp2.WSGIApplication([
