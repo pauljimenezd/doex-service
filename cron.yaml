@@ -4,5 +4,5 @@ cron:
   schedule: every monday,tuesday,wednesday,thursday,friday 22:00
 
 - description: Auto synchronization rates data
-  url: /tasks/rates/syncronize
+  url: /tasks/rates/sync
   schedule: every 2 hours
