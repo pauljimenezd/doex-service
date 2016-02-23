@@ -6,7 +6,7 @@ threadsafe: yes
 
 handlers:
 - url: /favicon\.ico
-  static_files: statics/imgs/favicon.ico
+  static_files: statics\/imgs\/favicon.ico
   upload: favicon\.ico
 
 - url: /tasks/*
