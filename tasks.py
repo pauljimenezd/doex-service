@@ -89,7 +89,6 @@ class RatesUpdateTasks(webapp2.RequestHandler):
                 last_processed = initial_row
 
                 if initial_row < total_records:
-                    existing_rates = Rate.query().fetch()
                     rate_list = []
                     for rowIndex in range(initial_row, total_records):
                         processed = False
@@ -107,11 +106,8 @@ class RatesUpdateTasks(webapp2.RequestHandler):
                                 col_value = sheet.cell_value(rowx=rowIndex, colx=colIndex)
 
                                 if col_value is not '':
-                                    # Verify if already exists a rate in the db
-                                    found_rows = [r for r in existing_rates if r.currency.id() == currency and r.date == rate_date]
-                                    if not len(found_rows):
-                                        rate_list.append(Rate(currency=ndb.Key('Currency', currency), date=rate_date, value=col_value))
-                                        processed = True
+                                    rate_list.append(Rate(currency=ndb.Key('Currency', currency), date=rate_date, value=col_value))
+                                    processed = True
 
                         last_processed = rowIndex
                         if processed:
