@@ -17,6 +17,7 @@ class Currencies(webapp2.RequestHandler):
         # Setting response header
         self.response.headers['Access-Control-Allow-Origin'] = '*'
         self.response.content_type = 'application/json; charset=utf-8'
+        self.response.cache_control = 'public, max-age=%d' % (timedelta(days=6).total_seconds())
 
         # Verification for retrieve only one record or list
         if code is not None:
@@ -77,6 +78,7 @@ class Rates(webapp2.RequestHandler):
         """
         self.response.headers['Access-Control-Allow-Origin'] = '*'
         self.response.content_type = 'application/json; charset=utf-8'
+        self.response.cache_control = 'public, max-age=%d' % (timedelta(hours=6).total_seconds())
 
         filter_arg = self.request.get('f', 'today')
         filter_days_pattern = r'([0-9]+)d'
