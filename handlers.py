@@ -31,7 +31,8 @@ class Currencies(webapp2.RequestHandler):
             # Return a 404 if no record was found
             webapp2.abort(204)
 
-        return self.response.out.write(json.dumps(result, cls=Currency.JSONEncoder))
+        self.response.out.write(json.dumps(result, cls=Currency.JSONEncoder))
+        self.response.md5_etag()
 
     def post(self):
         auth_key = self.request.headers.get('key', None)
@@ -125,7 +126,8 @@ class Rates(webapp2.RequestHandler):
             webapp2.abort(204)
 
         response = json.dumps(result, cls=Rate.FullJSONEncoder) if type(result) not in (str, unicode) else result
-        return self.response.out.write(response)
+        self.response.out.write(response)
+        self.response.md5_etag()
 
     @staticmethod
     def cache(memkey, result):
