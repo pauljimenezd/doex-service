@@ -37,7 +37,7 @@ class RatesUpdateTasks(webapp2.RequestHandler):
                     processed = False
                     for rowIndex in range(initial_row, ((initial_row + threshold) if (initial_row + threshold) < total_records else total_records)):
                         year = int(sheet.cell_value(rowx=rowIndex, colx=0))
-                        month = int(MONTHS.get((sheet.cell_value(rowx=rowIndex, colx=1) or '').lower(), None))
+                        month = int(MONTHS.get((sheet.cell_value(rowx=rowIndex, colx=1) or '').lower().strip(), None))
                         day = int(sheet.cell_value(rowx=rowIndex, colx=2))
 
                         try:
@@ -93,7 +93,7 @@ class RatesUpdateTasks(webapp2.RequestHandler):
                     for rowIndex in range(initial_row, total_records):
                         processed = False
                         year = int(sheet.cell_value(rowx=rowIndex, colx=0))
-                        month = int(MONTHS.get((sheet.cell_value(rowx=rowIndex, colx=1) or '').lower(), None))
+                        month = int(MONTHS.get((sheet.cell_value(rowx=rowIndex, colx=1) or '').lower().strip(), None))
                         day = int(sheet.cell_value(rowx=rowIndex, colx=2))
 
                         try:

@@ -35,6 +35,7 @@ def handle_500(request, response, exception):
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.content_type = 'application/json; charset=utf-8'
     response.set_status(500)
+    response.out.write(json.dumps({u'code': 500, u'title': u'Internal Server Error', u'detail': u'The server has either erred or is incapable of performing the requested operation.'}))
 
 
 def error_handler(request, response, exception):
