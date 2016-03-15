@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import re
 
 from google.appengine.ext import ndb
@@ -81,53 +81,78 @@ class Rates(webapp2.RequestHandler):
         self.response.content_type = 'application/json; charset=utf-8'
         self.response.cache_control = 'public, max-age=%d' % (timedelta(hours=6).total_seconds())
 
-        filter_arg = self.request.get('f', 'today')
+        filter_arg = self.request.get('filter', 'today')
         filter_days_pattern = r'([0-9]+)d'
         filter_date_pattern = r'([0-9]{4}-[0-9]{2}-[0-9]{2})'
 
         if currency and not Currency.get_by_id(id=currency):
             webapp2.abort(404)
 
-        result = None
+        filter_dates = None, None
         if date is None:
             if filter_arg == 'today':
-                result = Rates.Filters.today(currency=currency)
-            elif filter_arg == 'now':
-                result = Rates.Filters.now(currency=currency)
+                filter_dates = Rates.Filters.today()
+
             elif filter_arg == 'this-month':
-                result = Rates.Filters.this_month(currency=currency)
+                filter_dates = Rates.Filters.this_month()
+
             elif filter_arg == 'this-week':
-                result = Rates.Filters.this_week(currency=currency)
+                filter_dates = Rates.Filters.this_week()
+
             elif filter_arg == 'all':
-                result = Rates.get_all(currency=currency)
+                filter_dates = None, None
+
             elif filter_arg == 'yesterday':
-                result = Rates.Filters.yesterday(currency=currency)
+                filter_dates = Rates.Filters.yesterday()
+
             elif filter_arg == 'last-week':
-                result = Rates.Filters.last_week(currency=currency)
+                filter_dates = Rates.Filters.last_week(currency=currency)
+
             elif filter_arg == 'last-month':
-                result = Rates.Filters.last_month(currency=currency)
+                filter_dates = Rates.Filters.last_month()
+
             elif re.match(filter_days_pattern, filter_arg):
                 groups = re.match(filter_days_pattern, filter_arg).groups()
-                result = Rates.Filters.by_days(days=int(groups[0]), currency=currency)
+                filter_dates = Rates.Filters.by_days(days=int(groups[0]))
+
             elif re.match(filter_date_pattern, filter_arg):
                 groups = re.match(filter_date_pattern, filter_arg).groups()
-                result = Rates.Filters.date(date=groups[0], currency=currency)
+                filter_dates = Rates.Filters.date(date_filtering=groups[0])
+
             else:
                 webapp2.abort(400)
         else:
             try:
-                date = datetime.strptime(date, '%Y-%m-%d').date()
+                filter_dates = datetime.strptime(date, '%Y-%m-%d').date(), None
             except ValueError:
-                webapp2.abort(404)
+                webapp2.abort(400)
 
-            result = Rates.get_single(currency=currency, date=date)
+        mem_key = Rates.get_mkey(start=filter_dates[0], end=filter_dates[1], currency=currency)
+        etag_key = mem_key + 'T'
+        self.validate_etag(etag_key)
+
+        if filter_dates[0] and filter_dates[1]:
+            result = Rates.get_range(memkey=mem_key, start=filter_dates[0], end=filter_dates[1], currency=currency)
+        elif filter_dates[0]:
+            result = Rates.get_single(memkey=mem_key, date=filter_dates[0], currency=currency)
+        else:
+            result = Rates.get_all(memkey=mem_key, currency=currency)
 
         if not result:
+            self.response.md5_etag()
+            memcache.add(key=etag_key, value=self.response.etag, time=timedelta(hours=4).total_seconds())
             webapp2.abort(204)
 
         response = json.dumps(result, cls=Rate.FullJSONEncoder) if type(result) not in (str, unicode) else result
         self.response.out.write(response)
         self.response.md5_etag()
+        memcache.add(key=etag_key, value=self.response.etag, time=timedelta(hours=4).total_seconds())
+
+    def validate_etag(self, tagkey):
+        tag = memcache.get(tagkey)
+        if tag and tag in self.request.if_none_match:
+            self.response.etag = tag
+            webapp2.abort(304)
 
     @staticmethod
     def cache(memkey, result):
@@ -141,15 +166,12 @@ class Rates(webapp2.RequestHandler):
         memcache.add(key=memkey, value=unicode(json.dumps(result, cls=Rate.FullJSONEncoder)), time=3600)
 
     @staticmethod
-    def get_all(currency=None):
+    def get_all(memkey, currency=None):
         """
         Retrieve all rate for the current month.
         :param currency: str
         :return: object
         """
-        # Generating the data key for the cache
-        memkey = 'RATEA%s' % (currency or '').upper()
-
         # Retrieving the rate of the currency from the cache
         result = memcache.get(memkey)
         # Verify if the rate exists, if not will call the datastore.
@@ -166,15 +188,13 @@ class Rates(webapp2.RequestHandler):
         return result
 
     @staticmethod
-    def get_single(currency, date):
+    def get_single(memkey, date, currency=None):
         """
         Retrieve single date from the datastore of the selected date and currency.
         :param currency:
         :param date:
         :return:
         """
-        # Generating the data key for the cache
-        memkey = "RATE%(id)d%(suf)s" % {'id': date.toordinal(), 'suf': (currency or '').upper()}
         # Retrieving the rate of the currency from the cache
         result = memcache.get(memkey)
         # Verify if the rate exists, if not will call the datastore.
@@ -191,7 +211,7 @@ class Rates(webapp2.RequestHandler):
         return result
 
     @staticmethod
-    def get_range(currency, start, end):
+    def get_range(memkey, start, end, currency):
         """
         Retrieve range of rates from datastore of the selected dates and currency.
         :param currency:
@@ -199,9 +219,6 @@ class Rates(webapp2.RequestHandler):
         :param end:
         :return:
         """
-        # Generating the data key for the cache
-        memkey = "RATE%(begin)d%(end)d%(suf)s" % {'begin': start.toordinal(), 'end': end.toordinal(), 'suf': (currency or '').upper()}
-
         # Retrieving the rate of the currency from the cache
         result = memcache.get(memkey)
         # Verify if the rate exists, if not will call the datastore.
@@ -217,101 +234,80 @@ class Rates(webapp2.RequestHandler):
                 Rates.cache(memkey, result)
         return result
 
+    @staticmethod
+    def get_mkey(start=None, end=None, currency=None):
+        # Generating the data key for the cache
+        memkey = "RATE%(begin)s%(end)s%(suf)s" % {
+            'begin': (start.toordinal() if type(start) in (datetime, date) else (start or '')),
+            'end': (end.toordinal() if type(end) in (datetime, date) else (end or '')),
+            'suf': (currency or '').upper()
+        }
+        return memkey.strip()
+
     class Filters:
         @staticmethod
-        def today(currency=None):
+        def get_closing_date(filter_date):
+            # Setting the date for the previous closing date.
+            filter_date -= timedelta(days=1)
+
+            # Verify if the date is weekend. Select the previews friday.
+            if filter_date.weekday() in (5, 6):
+                filter_date -= timedelta(days=filter_date.weekday() - 4)
+
+            if filter_date.month == 12 and filter_date.day == 25:
+                filter_date -= timedelta(days=1)
+
+            return filter_date
+
+        @staticmethod
+        def today():
             """
             Retrieve the rate for active for today
-            :param currency: str
             :return: list
             """
             today = datetime.now(AtlanticTimezone()).date()
+            start = Rates.Filters.get_closing_date(today)
 
-            # Selecting the date for filtering results for the rate active for the current day.
-            today -= timedelta(days=1)  # Getting the active date for the -4:00 region
-
-            # Verify if the date is weekend. Select the previews friday.
-            if today.weekday() in (5, 6):
-                today -= timedelta(days=today.weekday() - 4)
-
-            result = Rates.get_single(currency=currency, date=today)
-            return result
+            return start, None
 
         @staticmethod
-        def now(currency):
-            """
-            Retrieve the last or actual rate.
-            :param currency: str
-            :return: object
-            """
-            date = datetime.now(AtlanticTimezone()).date()
-
-            # Verify if the date is weekend. Select the previews friday.
-            if date.weekday() in (5, 6):
-                date -= timedelta(days=date.weekday() - 4)
-
-            result = Rates.get_single(currency=currency, date=date)
-
-            if not result:
-                date -= timedelta(days=1)
-
-                # Verify if the date is weekend. Select the previews friday.
-                if date.weekday() in (5, 6):
-                    date -= timedelta(days=date.weekday() - 4)
-
-                result = Rates.get_single(currency=currency, date=date)
-            return result
-
-        @staticmethod
-        def this_month(currency=None):
+        def this_month():
             """
             Retrieve all rate for the current month.
-            :param currency: str
             :return: object
             """
             # Selecting the date for filtering results for the rate active for the current day.
             end = datetime.now(AtlanticTimezone()).date()
             if end.day is not 1:
                 start = end.replace(day=1)
-                end -= timedelta(days=1)
             else:
                 start = end
 
-            # Verification if the weekday is sunday or monday
-            if start.weekday() in (0, 1):
-                start -= timedelta(days=start.weekday() + 1)
+            start = Rates.Filters.get_closing_date(start)
+            end = Rates.Filters.get_closing_date(end)
 
-            # Verify if the date is weekend. Select the previews friday.
-            if start.weekday() in (5, 6):
-                start -= timedelta(days=start.weekday() - 4)
-
-            # Verify if the date is weekend. Select the previews friday.
-            if end.weekday() in (5, 6):
-                end -= timedelta(days=end.weekday() - 4)
-
-            result = Rates.get_range(currency=currency, start=start, end=end)
-            return result
+            return start, end
 
         @staticmethod
-        def this_week(currency=None):
+        def this_week():
             """
             Retrieve all rate for the current month.
-            :param currency: str
-            :return: object
+            :return:
             """
             # Selecting the date for filtering results for the rate active for the current day.
             end = datetime.now(AtlanticTimezone()).date()
             if end.weekday() is not 0:
                 start = end - timedelta(days=end.weekday())
-                end -= timedelta(days=1)
             else:
                 start = end
 
-            result = Rates.get_range(currency=currency, start=start, end=end)
-            return result
+            start = Rates.Filters.get_closing_date(start)
+            end = Rates.Filters.get_closing_date(end)
+
+            return start, end
 
         @staticmethod
-        def by_days(days, currency=None):
+        def by_days(days):
             """
             Retrieve an amount of days form the datastore
             :type currency: str
@@ -320,62 +316,48 @@ class Rates(webapp2.RequestHandler):
             :return: object
             """
             # Selecting the date for filtering results for the rate active for the current day.
-            end = datetime.now(AtlanticTimezone()).date() - timedelta(days=1)  # Getting the active date for the -4:00 region
-
-            # Verify if the date is weekend. Select the previews friday.
-            if end.weekday() in (5, 6):
-                end = end - timedelta(days=end.weekday() - 4)
+            end = datetime.now(AtlanticTimezone()).date() # Getting the active date for the -4:00 region
 
             start = end - timedelta(days=days)
 
-            result = Rates.get_range(currency=currency, start=start, end=end)
-            return result
+            start = Rates.Filters.get_closing_date(start)
+            end = Rates.Filters.get_closing_date(end)
+
+            return start, end
 
         @staticmethod
-        def date(date, currency=None):
+        def date(date_filtering):
             """
-            Filter rate active for the given date.
-            :param date:
-            String of the given date in iso_format.
+            Filter rate active for the given date_filtering.
+            :param date_filtering:
+            String of the given date_filtering in iso_format.
             :param currency:
             String of the selected currency in iso_code.
             :return:
             """
             try:
-                date = datetime.strptime(date, '%Y-%m-%d').date()
+                date_filtering = datetime.strptime(date_filtering, '%Y-%m-%d').date()
             except ValueError:
                 webapp2.abort(400)
 
-            # Selecting the date for filtering results for the rate active for the current day.
-            date -= timedelta(days=1)  # Getting the active date for the -4:00 region
+            start = Rates.Filters.get_closing_date(date_filtering)
 
-            # Verify if the date is weekend. Select the previews friday.
-            if date.weekday() in (5, 6):
-                date -= timedelta(days=date.weekday() - 4)
-
-            result = Rates.get_single(currency, date)
-
-            return result
+            return start, None
 
         @staticmethod
-        def yesterday(currency=None):
+        def yesterday():
             """
 
-            :type currency: str
-            :param currency:
             :return:
             """
-            today = datetime.now(AtlanticTimezone()).date()
+            search_date = datetime.now(AtlanticTimezone()).date()
 
             # Selecting the date for filtering results for the rate active for the current day.
-            today -= timedelta(days=2)  # Getting the active date for the -4:00 region
+            search_date -= timedelta(days=1)  # Getting the active date for the -4:00 region
 
-            # Verify if the date is weekend. Select the previews friday.
-            if today.weekday() in (5, 6):
-                today -= timedelta(days=today.weekday() - 4)
+            search_date = Rates.Filters.get_closing_date(search_date)
 
-            result = Rates.get_single(currency=currency, date=today)
-            return result
+            return search_date, None
 
         @staticmethod
         def last_week(currency=None):
@@ -386,50 +368,38 @@ class Rates(webapp2.RequestHandler):
             :return:
             """
             # Selecting the date for filtering results for the rate active for the current day.
-            end = datetime.now(AtlanticTimezone()).date()
+            today = datetime.now(AtlanticTimezone()).date()
 
-            if end.weekday() is not 0:
-                start = end - timedelta(days=end.weekday())
-                end -= timedelta(days=1)
+            if today.weekday() is not 0:
+                start = today - timedelta(days=today.weekday())
             else:
-                start = end
+                start = today
 
             start -= timedelta(weeks=1)
-            end -= timedelta(weeks=1)
+            end = start + timedelta(days=6)
 
-            result = Rates.get_range(currency=currency, start=start, end=end)
-            return result
+            start = Rates.Filters.get_closing_date(start)
+            end = Rates.Filters.get_closing_date(end)
+
+            return start, end
 
         @staticmethod
-        def last_month(currency=None):
+        def last_month():
             """
 
-            :type currency: str
-            :param currency:
             :return:
             """
             # Selecting the date for filtering results for the rate active for the current day.
-            end = datetime.now(AtlanticTimezone()).date()
-            if end.day is not 1:
-                start = end.replace(day=1)
-                end -= timedelta(days=1)
+            today = datetime.now(AtlanticTimezone()).date()
+            if today.day is not 1:
+                start = today.replace(day=1)
             else:
-                start = end
+                start = today
 
             end = start - timedelta(days=1)
             start = start.replace(month=start.month - 1)
 
-            # Verification if the weekday is sunday or monday
-            if start.weekday() in (0, 1):
-                start -= timedelta(days=start.weekday() + 1)
+            start = Rates.Filters.get_closing_date(start)
+            end = Rates.Filters.get_closing_date(end)
 
-            # Verify if the date is weekend. Select the previews friday.
-            if start.weekday() in (5, 6):
-                start -= timedelta(days=start.weekday() - 4)
-
-            # Verify if the date is weekend. Select the previews friday.
-            if end.weekday() in (5, 6):
-                end -= timedelta(days=end.weekday() - 4)
-
-            result = Rates.get_range(currency=currency, start=start, end=end)
-            return result
+            return start, end
