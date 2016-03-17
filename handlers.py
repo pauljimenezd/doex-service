@@ -16,7 +16,7 @@ class Currencies(webapp2.RequestHandler):
     def get(self, code=None):
         # Setting response header
         self.response.headers['Access-Control-Allow-Origin'] = '*'
-        self.response.content_type = 'application/json; charset=utf-8'
+        self.response.content_type = 'application/json'
         self.response.cache_control = 'public, max-age=%d' % (timedelta(days=6).total_seconds())
 
         # Verification for retrieve only one record or list
@@ -78,7 +78,7 @@ class Rates(webapp2.RequestHandler):
         :return:
         """
         self.response.headers['Access-Control-Allow-Origin'] = '*'
-        self.response.content_type = 'application/json; charset=utf-8'
+        self.response.content_type = 'application/json'
         self.response.cache_control = 'public, max-age=%d' % (timedelta(hours=6).total_seconds())
 
         filter_arg = self.request.get('filter', 'today')
