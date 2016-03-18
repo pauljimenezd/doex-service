@@ -67,7 +67,7 @@ app = webapp2.WSGIApplication([
         routes.PathPrefixRoute('/tasks', [
             routes.PathPrefixRoute('/rates', [
                 webapp2.Route('/update', handler=tasks.RatesUpdateTasks, handler_method='update', name='task-rate-update'),
-                webapp2.Route('/sync', handler=tasks.RatesUpdateTasks, handler_method='synchronize', name='task-rate-sync'),
+                # webapp2.Route('/sync', handler=tasks.RatesUpdateTasks, handler_method='synchronize', name='task-rate-sync'),
             ])
         ]),
     ]),
