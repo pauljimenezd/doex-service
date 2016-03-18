@@ -5,20 +5,18 @@ import re
 
 from google.appengine.ext import ndb
 import webapp2
-
 from google.appengine.api import memcache
 
 from models import Currency, Rate
-from utils import AtlanticTimezone
+from utils import AtlanticTimezone, etag, jsonresponse, allow_origin, cache
 
 
 class Currencies(webapp2.RequestHandler):
+    @etag
+    @jsonresponse
+    @cache(age=timedelta(days=6).total_seconds())
+    @allow_origin('*')
     def get(self, code=None):
-        # Setting response header
-        self.response.headers['Access-Control-Allow-Origin'] = '*'
-        self.response.content_type = 'application/json'
-        self.response.cache_control = 'public, max-age=%d' % (timedelta(days=6).total_seconds())
-
         # Verification for retrieve only one record or list
         if code is not None:
             # Retrieving single record
@@ -32,12 +30,7 @@ class Currencies(webapp2.RequestHandler):
             webapp2.abort(204)
 
         self.response.out.write(json.dumps(result, cls=Currency.JSONEncoder))
-        self.response.md5_etag()
 
-    def post(self):
-        auth_key = self.request.headers.get('key', None)
-        if not auth_key:
-            webapp2.abort(404)
 
     @staticmethod
     def __get_single(code):
@@ -45,7 +38,7 @@ class Currencies(webapp2.RequestHandler):
         currency = memcache.get(key=cache_key)
         if not currency:
             currency = Currency.get_by_id(id=code)
-            memcache.add(key=cache_key, value=json.dumps(currency, cls=Currency.JSONEncoder), time=3600)
+            memcache.set(key=cache_key, value=json.dumps(currency, cls=Currency.JSONEncoder), time=3600)
         else:
             obj = json.loads(currency)
             currency = Currency.factory(obj)
@@ -71,15 +64,16 @@ class Currencies(webapp2.RequestHandler):
 
 
 class Rates(webapp2.RequestHandler):
+    @etag
+    @jsonresponse
+    @cache(age=timedelta(hours=6).total_seconds())
+    @allow_origin('*')
     def get(self, date=None, currency=None):
         """
         Handler for the GET requests
         :param currency:
         :return:
         """
-        self.response.headers['Access-Control-Allow-Origin'] = '*'
-        self.response.content_type = 'application/json'
-        self.response.cache_control = 'public, max-age=%d' % (timedelta(hours=6).total_seconds())
 
         filter_arg = self.request.get('filter', 'today')
         filter_days_pattern = r'([0-9]+)d'
@@ -128,8 +122,6 @@ class Rates(webapp2.RequestHandler):
                 webapp2.abort(400)
 
         mem_key = Rates.get_mkey(start=filter_dates[0], end=filter_dates[1], currency=currency)
-        etag_key = mem_key + 'T'
-        self.validate_etag(etag_key)
 
         if filter_dates[0] and filter_dates[1]:
             result = Rates.get_range(memkey=mem_key, start=filter_dates[0], end=filter_dates[1], currency=currency)
@@ -139,20 +131,10 @@ class Rates(webapp2.RequestHandler):
             result = Rates.get_all(memkey=mem_key, currency=currency)
 
         if not result:
-            self.response.md5_etag()
-            memcache.add(key=etag_key, value=self.response.etag, time=timedelta(hours=4).total_seconds())
             webapp2.abort(204)
 
         response = json.dumps(result, cls=Rate.FullJSONEncoder) if type(result) not in (str, unicode) else result
         self.response.out.write(response)
-        self.response.md5_etag()
-        memcache.add(key=etag_key, value=self.response.etag, time=timedelta(hours=4).total_seconds())
-
-    def validate_etag(self, tagkey):
-        tag = memcache.get(tagkey)
-        if tag and tag in self.request.if_none_match:
-            self.response.etag = tag
-            webapp2.abort(304)
 
     @staticmethod
     def cache(memkey, result):
@@ -316,7 +298,7 @@ class Rates(webapp2.RequestHandler):
             :return: object
             """
             # Selecting the date for filtering results for the rate active for the current day.
-            end = datetime.now(AtlanticTimezone()).date() # Getting the active date for the -4:00 region
+            end = datetime.now(AtlanticTimezone()).date()  # Getting the active date for the -4:00 region
 
             start = end - timedelta(days=days)
 
