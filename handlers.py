@@ -239,7 +239,8 @@ class Rates(webapp2.RequestHandler):
             if filter_date.month == 12 and filter_date.day == 25:
                 filter_date -= timedelta(days=1)
 
-            return filter_date
+            last_record = Rate.query(Rate.date <= filter_date).order(-Rate.date).get()
+            return last_record.date
 
         @staticmethod
         def today():
