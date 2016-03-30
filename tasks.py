@@ -2,6 +2,7 @@
 import json
 from urllib2 import urlopen
 from datetime import date
+from google.appengine.api import memcache
 
 from google.appengine.ext import ndb
 import webapp2
@@ -62,6 +63,7 @@ class RatesUpdateTasks(webapp2.RequestHandler):
 
                     if len(rate_list) > 0:
                         ndb.put_multi(rate_list)
+                        memcache.flush_all()
 
                     # Updating the "last_row" processed
                     last_row.value = str(last_processed + 1)
@@ -117,6 +119,7 @@ class RatesUpdateTasks(webapp2.RequestHandler):
 
                     if len(rate_list) > 0:
                         ndb.put_multi(rate_list)
+                        memcache.flush_all()
 
                     # Updating the "last_row" processed
                     last_row.value = str(last_processed + 1)
