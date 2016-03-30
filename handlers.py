@@ -239,8 +239,17 @@ class Rates(webapp2.RequestHandler):
             if filter_date.month == 12 and filter_date.day == 25:
                 filter_date -= timedelta(days=1)
 
-            last_record = Rate.query(Rate.date <= filter_date).order(-Rate.date).get()
-            return last_record.date
+            dkey = 'RATE%d_date' % filter_date.toordinal()
+
+            valid_date = memcache.get(dkey)
+            if not valid_date:
+                last_record = Rate.query(Rate.date <= filter_date).order(-Rate.date).get()
+                valid_date = last_record.date
+                memcache.set(key=dkey, value=valid_date.isoformat())
+            else:
+                valid_date = datetime.strptime(valid_date, '%Y-%m-%d').date()
+
+            return valid_date
 
         @staticmethod
         def today():
